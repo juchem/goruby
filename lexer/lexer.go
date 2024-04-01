@@ -306,6 +306,13 @@ func startLexer(l *Lexer) StateFn {
 	case '@':
 		l.emit(token.AT)
 		return startLexer
+	case '\\':
+		if next := l.peek(); next == '\n' {
+			l.next()
+      return startLexer
+		} else {
+			return l.errorf("Illegal character: '%c'", next)
+		}
 
 	default:
 		if isDigit(r) {
