@@ -172,6 +172,8 @@ func (p *parser) init(fset *gotoken.FileSet, filename string, src []byte, mode M
 	p.registerPrefix(token.KEYWORD__FILE__, p.parseKeyword__FILE__)
 	p.registerPrefix(token.BEGIN, p.parseExceptionHandlingBlock)
 	p.registerPrefix(token.CAPTURE, p.parseBlockCapture)
+	p.registerPrefix(token.ASTERISK, p.parseArrayExpansion)
+	p.registerPrefix(token.DBLASTERISK, p.parseHashExpansion)
 
 	p.infixParseFns = make(map[token.Type]infixParseFn)
 	p.registerInfix(token.PLUS, p.parseInfixExpression)
@@ -553,6 +555,28 @@ func (p *parser) parseBlockCapture() ast.Expression {
 	}
 	capture.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 	return capture
+}
+
+func (p *parser) parseArrayExpansion() ast.Expression {
+	if p.trace {
+		defer un(trace(p, "parseArrayExpansion"))
+	}
+  symbol := &ast.ArrayExpansion{Token: p.curToken}
+	p.nextToken()
+	val := p.parseExpression(precHighest)
+	symbol.Value = val
+	return symbol
+}
+
+func (p *parser) parseHashExpansion() ast.Expression {
+	if p.trace {
+		defer un(trace(p, "parseHashExpansion"))
+	}
+  symbol := &ast.HashExpansion{Token: p.curToken}
+	p.nextToken()
+	val := p.parseExpression(precHighest)
+	symbol.Value = val
+	return symbol
 }
 
 func (p *parser) parseAssignmentOperator(left ast.Expression) ast.Expression {

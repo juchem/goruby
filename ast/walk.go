@@ -264,7 +264,15 @@ func Walk(v Visitor, node Node) {
 		Walk(v, n.Right)
 
 	case *ReturnStatement:
-		Walk(v, n.ReturnValue)
+    if n != nil {
+      Walk(v, n.ReturnValue)
+    }
+
+  case *ArrayExpansion:
+    panic("IMPLEMENT ArrayExpansion")
+
+  case *HashExpansion:
+    panic("IMPLEMENT HashExpansion")
 
 	case *BlockStatement:
 		walkStmtList(v, n.Statements)

@@ -33,16 +33,17 @@ const (
 	MODASSIGN // %=
 	operator_assign_end
 
-	PLUS       // +
-	MINUS      // -
-	BANG       // !
-	ASTERISK   // *
-	SLASH      // /
-	MODULO     // %
-	AND        // &
-	LOGICALAND // &&
-	PIPE       // |
-	LOGICALOR  // ||
+	PLUS        // +
+	MINUS       // -
+	BANG        // !
+	ASTERISK    // *
+  DBLASTERISK // **
+	SLASH       // /
+	MODULO      // %
+	AND         // &
+	LOGICALAND  // &&
+	PIPE        // |
+	LOGICALOR   // ||
 
 	LT        // <
 	LTE       // <=
@@ -124,6 +125,7 @@ var tokens = [...]string{
 	MINUS:      "-",
 	BANG:       "!",
 	ASTERISK:   "*",
+	DBLASTERISK:"**",
 	SLASH:      "/",
 	MODULO:     "%",
 	AND:        "&",
