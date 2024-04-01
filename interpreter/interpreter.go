@@ -4,6 +4,7 @@ import (
 	"go/token"
 	"log"
 	"os"
+  "path/filepath"
 
 	"github.com/goruby/goruby/evaluator"
 	"github.com/goruby/goruby/object"
@@ -27,10 +28,11 @@ func New() Interpreter {
 	loadPathArr := loadPath.(*object.Array)
 	loadPathArr.Elements = append(loadPathArr.Elements, &object.String{Value: cwd})
 	env.SetGlobal("$:", loadPathArr)
-	return &interpreter{environment: env}
+	return &interpreter{cwd: cwd, environment: env}
 }
 
 type interpreter struct {
+  cwd string
 	environment object.Environment
 }
 
@@ -39,5 +41,12 @@ func (i *interpreter) Interpret(filename string, input interface{}) (object.Ruby
 	if err != nil {
 		return nil, object.NewSyntaxError(err)
 	}
+
+  scriptPath := filename
+  if !filepath.IsAbs(scriptPath) {
+    scriptPath = filepath.Join(i.cwd, scriptPath)
+  }
+  i.environment.SetScriptPath(scriptPath)
+
 	return evaluator.Eval(node, i.environment)
 }

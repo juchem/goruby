@@ -29,6 +29,7 @@ var kernelMethodSet = map[string]RubyMethod{
 	"class":             withArity(0, publicMethod(kernelClass)),
 	"puts":              privateMethod(kernelPuts),
 	"require":           withArity(1, privateMethod(kernelRequire)),
+	"require_relative":  withArity(1, privateMethod(kernelRequireRelative)),
 	"extend":            publicMethod(kernelExtend),
 	"block_given?":      withArity(0, privateMethod(kernelBlockGiven)),
 	"tap":               publicMethod(kernelTap),
@@ -132,7 +133,7 @@ func kernelClass(context CallContext, args ...RubyObject) (RubyObject, error) {
 	return receiver.Class().(RubyClassObject), nil
 }
 
-func kernelRequire(context CallContext, args ...RubyObject) (RubyObject, error) {
+func kernelRequireImpl(context CallContext, relative bool, args ...RubyObject) (RubyObject, error) {
 	if len(args) != 1 {
 		return nil, NewWrongNumberOfArgumentsError(1, len(args))
 	}
@@ -144,11 +145,19 @@ func kernelRequire(context CallContext, args ...RubyObject) (RubyObject, error) 
 	if !strings.HasSuffix(filename, "rb") {
 		filename += ".rb"
 	}
-	absolutePath, _ := filepath.Abs(filename)
-	loadedFeatures, ok := context.Env().Get("$LOADED_FEATURES")
+
+  env := context.Env()
+	var absolutePath string
+  if relative {
+    baseDir := filepath.Dir(env.ScriptPath())
+    absolutePath = filepath.Join(baseDir, filename)
+  } else {
+    absolutePath, _ = filepath.Abs(filename)
+  }
+	loadedFeatures, ok := env.Get("$LOADED_FEATURES")
 	if !ok {
 		loadedFeatures = NewArray()
-		context.Env().SetGlobal("$LOADED_FEATURES", loadedFeatures)
+		env.SetGlobal("$LOADED_FEATURES", loadedFeatures)
 	}
 	arr, ok := loadedFeatures.(*Array)
 	if !ok {
@@ -165,34 +174,44 @@ func kernelRequire(context CallContext, args ...RubyObject) (RubyObject, error) 
 		return FALSE, nil
 	}
 
-	file, err := ioutil.ReadFile(filename)
-	if os.IsNotExist(err) {
-		found := false
-		loadPath, _ := context.Env().Get("$:")
-		for _, p := range loadPath.(*Array).Elements {
-			newPath := path.Join(p.(*String).Value, filename)
-			file, err = ioutil.ReadFile(newPath)
-			if !os.IsNotExist(err) {
-				absolutePath = newPath
-				found = true
-				break
-			}
-		}
-		if !found {
-			return nil, NewNoSuchFileLoadError(name.Value)
-		}
-	}
+	file, err := ioutil.ReadFile(absolutePath)
+  found := err == nil
+  if !found && !relative {
+    if os.IsNotExist(err) {
+      loadPath, _ := env.Get("$:")
+      for _, p := range loadPath.(*Array).Elements {
+        newPath := path.Join(p.(*String).Value, filename)
+        file, err = ioutil.ReadFile(newPath)
+        if !os.IsNotExist(err) {
+          absolutePath = newPath
+          found = true
+          break
+        }
+      }
+    }
+  }
+  if !found {
+    return nil, NewNoSuchFileLoadError(name.Value)
+  }
 
 	prog, err := parser.ParseFile(token.NewFileSet(), absolutePath, file, 0)
 	if err != nil {
 		return nil, NewSyntaxError(err)
 	}
-	_, err = context.Eval(prog, WithScopedLocalVariables(context.Env()))
+	_, err = context.Eval(prog, WithScopedLocalVariablesForScript(env, absolutePath))
 	if err != nil {
 		return nil, errors.WithMessage(err, "require")
 	}
 	arr.Elements = append(arr.Elements, &String{Value: absolutePath})
 	return TRUE, nil
+}
+
+func kernelRequire(context CallContext, args ...RubyObject) (RubyObject, error) {
+  return kernelRequireImpl(context, false, args...)
+}
+
+func kernelRequireRelative(context CallContext, args ...RubyObject) (RubyObject, error) {
+  return kernelRequireImpl(context, true, args...)
 }
 
 func kernelExtend(context CallContext, args ...RubyObject) (RubyObject, error) {

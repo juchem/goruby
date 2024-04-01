@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"unicode"
+  "path/filepath"
 )
 
 var classes = NewEnvironment()
@@ -43,7 +44,14 @@ func NewEnvironment() Environment {
 // WithScopedLocalVariables returns an Environment which scopes the local variables
 // within another env so they cannot leak out
 func WithScopedLocalVariables(e Environment) Environment {
+	return WithScopedLocalVariablesForScript(e, "")
+}
+
+// WithScopedLocalVariablesForScript returns an Environment which scopes the local
+// variables within another env so they cannot leak out, with given script path
+func WithScopedLocalVariablesForScript(e Environment, scriptPath string) Environment {
 	return &localVariableGuard{
+    scriptPath: scriptPath,
 		Environment:    e,
 		localVariables: &environment{store: make(map[string]RubyObject)},
 	}
@@ -51,6 +59,9 @@ func WithScopedLocalVariables(e Environment) Environment {
 
 // Environment holds Ruby object referenced by strings
 type Environment interface {
+  ScriptPath() string
+  SetScriptPath(path string)
+
 	// Get returns the RubyObject found for this key. If it is not found,
 	// ok  will be false
 	Get(key string) (object RubyObject, ok bool)
@@ -107,8 +118,20 @@ func EnvStat(env Environment, obj RubyObject) (EnvEntryInfo, bool) {
 }
 
 type localVariableGuard struct {
+  scriptPath string
 	Environment
 	localVariables *environment
+}
+
+func (l *localVariableGuard) ScriptPath() string {
+  if len(l.scriptPath) > 0 {
+    return l.scriptPath
+  }
+  return l.Environment.ScriptPath()
+}
+
+func(l *localVariableGuard) SetScriptPath(path string) {
+  l.scriptPath = filepath.Clean(path)
 }
 
 func (l *localVariableGuard) isLocalVariable(name string) bool {
@@ -154,8 +177,20 @@ func (l *localVariableGuard) Clone() Environment {
 }
 
 type environment struct {
+  scriptPath string
 	store map[string]RubyObject
 	outer Environment
+}
+
+func (e *environment) ScriptPath() string {
+  if len(e.scriptPath) > 0 {
+    return e.scriptPath
+  }
+  return e.outer.ScriptPath()
+}
+
+func(e *environment) SetScriptPath(path string) {
+  e.scriptPath = filepath.Clean(path)
 }
 
 // Get returns the RubyObject found for this key. If it is not found,
